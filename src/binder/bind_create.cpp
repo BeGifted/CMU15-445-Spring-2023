@@ -68,14 +68,6 @@ auto Binder::BindColumnDefinition(duckdb_libpgquery::PGColumnDef *cdef) -> Colum
     return {colname, TypeId::INTEGER};
   }
 
-  if (name == "double") {
-    return {colname, TypeId::DECIMAL};
-  }
-
-  if (name == "bool") {
-    return {colname, TypeId::BOOLEAN};
-  }
-
   if (name == "varchar") {
     auto exprs = BindExpressionList(cdef->typeName->typmods);
     if (exprs.size() != 1) {
@@ -93,7 +85,6 @@ auto Binder::BindCreate(duckdb_libpgquery::PGCreateStmt *pg_stmt) -> std::unique
   auto table = std::string(pg_stmt->relation->relname);
   auto columns = std::vector<Column>{};
   size_t column_count = 0;
-  std::vector<std::string> pk;
 
   for (auto c = pg_stmt->tableElts->head; c != nullptr; c = lnext(c)) {
     auto node = reinterpret_cast<duckdb_libpgquery::PGNode *>(c->data.ptr_value);
@@ -102,44 +93,14 @@ auto Binder::BindCreate(duckdb_libpgquery::PGCreateStmt *pg_stmt) -> std::unique
         auto cdef = reinterpret_cast<duckdb_libpgquery::PGColumnDef *>(c->data.ptr_value);
         auto centry = BindColumnDefinition(cdef);
         if (cdef->constraints != nullptr) {
-          for (auto constr = cdef->constraints->head; constr != nullptr; constr = constr->next) {
-            auto constraint = reinterpret_cast<duckdb_libpgquery::PGConstraint *>(constr->data.ptr_value);
-            switch (constraint->contype) {
-              case duckdb_libpgquery::PG_CONSTR_PRIMARY: {
-                if (!pk.empty()) {
-                  throw NotImplementedException("cannot have two primary keys");
-                }
-                pk = {centry.GetName()};
-                break;
-              }
-              default:
-                throw NotImplementedException("unsupported constraint");
-            }
-          }
+          throw NotImplementedException("constraints not supported");
         }
         columns.push_back(std::move(centry));
         column_count++;
         break;
       }
       case duckdb_libpgquery::T_PGConstraint: {
-        for (auto con = c; con != nullptr; con = con->next) {
-          auto constraint = reinterpret_cast<duckdb_libpgquery::PGConstraint *>(con->data.ptr_value);
-          switch (constraint->contype) {
-            case duckdb_libpgquery::PG_CONSTR_PRIMARY: {
-              std::vector<std::string> columns;
-              for (auto kc = constraint->keys->head; kc != nullptr; kc = kc->next) {
-                columns.emplace_back(reinterpret_cast<duckdb_libpgquery::PGValue *>(kc->data.ptr_value)->val.str);
-              }
-              if (!pk.empty()) {
-                throw NotImplementedException("cannot have two primary keys");
-              }
-              pk = std::move(columns);
-              break;
-            }
-            default:
-              throw NotImplementedException("unsupported constraint");
-          }
-        }
+        throw NotImplementedException("constraints not supported");
         break;
       }
       default:
@@ -151,7 +112,7 @@ auto Binder::BindCreate(duckdb_libpgquery::PGCreateStmt *pg_stmt) -> std::unique
     throw bustub::Exception("should have at least 1 column");
   }
 
-  return std::make_unique<CreateStatement>(std::move(table), std::move(columns), std::move(pk));
+  return std::make_unique<CreateStatement>(std::move(table), std::move(columns));
 }
 
 auto Binder::BindIndex(duckdb_libpgquery::PGIndexStmt *stmt) -> std::unique_ptr<IndexStatement> {

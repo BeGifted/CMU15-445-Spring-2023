@@ -14,7 +14,6 @@
 #include "common/exception.h"
 #include "common/macros.h"
 #include "execution/plans/aggregation_plan.h"
-#include "execution/plans/window_plan.h"
 
 namespace bustub {
 
@@ -63,7 +62,7 @@ class PlannerContext {
 
   /**
    * In the second phase of aggregation planning, we plan agg calls from `aggregations_`, and generate
-   * an aggregation plan node. The expressions in the vector should be used over the output from the
+   * an aggregation plan node. The expressions in thie vector should be used over the output from the
    * aggregation plan node.
    */
   std::vector<AbstractExpressionRef> expr_in_agg_;
@@ -131,16 +130,11 @@ class Planner {
 
   auto PlanSelectAgg(const SelectStatement &statement, AbstractPlanNodeRef child) -> AbstractPlanNodeRef;
 
-  auto PlanSelectWindow(const SelectStatement &statement, AbstractPlanNodeRef child) -> AbstractPlanNodeRef;
-
   auto PlanAggCall(const BoundAggCall &agg_call, const std::vector<AbstractPlanNodeRef> &children)
       -> std::tuple<AggregationType, std::vector<AbstractExpressionRef>>;
 
   auto GetAggCallFromFactory(const std::string &func_name, std::vector<AbstractExpressionRef> args)
       -> std::tuple<AggregationType, std::vector<AbstractExpressionRef>>;
-
-  auto GetWindowAggCallFromFactory(const std::string &func_name, std::vector<AbstractExpressionRef> args)
-      -> std::tuple<WindowFunctionType, std::vector<AbstractExpressionRef>>;
 
   auto GetBinaryExpressionFromFactory(const std::string &op_name, AbstractExpressionRef left,
                                       AbstractExpressionRef right) -> AbstractExpressionRef;

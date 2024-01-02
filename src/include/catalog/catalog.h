@@ -12,7 +12,6 @@
 
 #pragma once
 
-#include <exception>
 #include <memory>
 #include <string>
 #include <unordered_map>
@@ -35,8 +34,6 @@ namespace bustub {
 using table_oid_t = uint32_t;
 using column_oid_t = uint32_t;
 using index_oid_t = uint32_t;
-
-enum class IndexType { BPlusTreeIndex, HashTableIndex };
 
 /**
  * The TableInfo class maintains metadata about a table.
@@ -75,14 +72,13 @@ struct IndexInfo {
    * @param key_size The size of the index key, in bytes
    */
   IndexInfo(Schema key_schema, std::string name, std::unique_ptr<Index> &&index, index_oid_t index_oid,
-            std::string table_name, size_t key_size, bool is_primary_key)
+            std::string table_name, size_t key_size)
       : key_schema_{std::move(key_schema)},
         name_{std::move(name)},
         index_{std::move(index)},
         index_oid_{index_oid},
         table_name_{std::move(table_name)},
-        key_size_{key_size},
-        is_primary_key_{is_primary_key} {}
+        key_size_{key_size} {}
   /** The schema for the index key */
   Schema key_schema_;
   /** The name of the index */
@@ -95,10 +91,6 @@ struct IndexInfo {
   std::string table_name_;
   /** The size of the index key, in bytes */
   const size_t key_size_;
-  /** Is primary key index? */
-  bool is_primary_key_;
-  /** The index type */
-  [[maybe_unused]] IndexType index_type_{IndexType::BPlusTreeIndex};
 };
 
 /**
@@ -140,13 +132,11 @@ class Catalog {
     // Construct the table heap
     std::unique_ptr<TableHeap> table = nullptr;
 
+    // TODO(Wan,chi): This should be refactored into a private ctor for the binder tests, we shouldn't allow nullptr.
     // When create_table_heap == false, it means that we're running binder tests (where no txn will be provided) or
     // we are running shell without buffer pool. We don't need to create TableHeap in this case.
     if (create_table_heap) {
       table = std::make_unique<TableHeap>(bpm_);
-    } else {
-      // Otherwise, create an empty heap only for binder tests
-      table = TableHeap::CreateEmptyHeap(create_table_heap);
     }
 
     // Fetch the table OID for the new table
@@ -211,8 +201,7 @@ class Catalog {
   template <class KeyType, class ValueType, class KeyComparator>
   auto CreateIndex(Transaction *txn, const std::string &index_name, const std::string &table_name, const Schema &schema,
                    const Schema &key_schema, const std::vector<uint32_t> &key_attrs, std::size_t keysize,
-                   HashFunction<KeyType> hash_function, bool is_primary_key = false,
-                   IndexType index_type = IndexType::HashTableIndex) -> IndexInfo * {
+                   HashFunction<KeyType> hash_function) -> IndexInfo * {
     // Reject the creation request for nonexistent table
     if (table_names_.find(table_name) == table_names_.end()) {
       return NULL_INDEX_INFO;
@@ -229,7 +218,7 @@ class Catalog {
     }
 
     // Construct index metdata
-    auto meta = std::make_unique<IndexMetadata>(index_name, table_name, &schema, key_attrs, is_primary_key);
+    auto meta = std::make_unique<IndexMetadata>(index_name, table_name, &schema, key_attrs);
 
     // Construct the index, take ownership of metadata
     // TODO(Kyle): We should update the API for CreateIndex
@@ -237,20 +226,12 @@ class Catalog {
     // just the key, value, and comparator types
 
     // TODO(chi): support both hash index and btree index
-    std::unique_ptr<Index> index;
-    if (index_type == IndexType::HashTableIndex) {
-      index = std::make_unique<ExtendibleHashTableIndex<KeyType, ValueType, KeyComparator>>(std::move(meta), bpm_,
-                                                                                            hash_function);
-    } else {
-      BUSTUB_ASSERT(index_type == IndexType::BPlusTreeIndex, "Unsupported Index Type");
-      index = std::make_unique<BPlusTreeIndex<KeyType, ValueType, KeyComparator>>(std::move(meta), bpm_);
-    }
+    auto index = std::make_unique<BPlusTreeIndex<KeyType, ValueType, KeyComparator>>(std::move(meta), bpm_);
 
     // Populate the index with all tuples in table heap
     auto *table_meta = GetTable(table_name);
     for (auto iter = table_meta->table_->MakeIterator(); !iter.IsEnd(); ++iter) {
       auto [meta, tuple] = iter.GetTuple();
-      // we have to silently ignore the error here for a lot of reasons...
       index->InsertEntry(tuple.KeyFromTuple(schema, key_schema, key_attrs), tuple.GetRid(), txn);
     }
 
@@ -258,8 +239,8 @@ class Catalog {
     const auto index_oid = next_index_oid_.fetch_add(1);
 
     // Construct index information; IndexInfo takes ownership of the Index itself
-    auto index_info = std::make_unique<IndexInfo>(key_schema, index_name, std::move(index), index_oid, table_name,
-                                                  keysize, is_primary_key);
+    auto index_info =
+        std::make_unique<IndexInfo>(key_schema, index_name, std::move(index), index_oid, table_name, keysize);
     auto *tmp = index_info.get();
 
     // Update internal tracking

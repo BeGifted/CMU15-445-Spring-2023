@@ -27,7 +27,6 @@ BPLUSTREE_TYPE::BPlusTree(std::string name, page_id_t header_page_id, BufferPool
  */
 INDEX_TEMPLATE_ARGUMENTS
 auto BPLUSTREE_TYPE::IsEmpty() const -> bool { return true; }
-
 /*****************************************************************************
  * SEARCH
  *****************************************************************************/
@@ -124,7 +123,9 @@ INDEX_TEMPLATE_ARGUMENTS
 void BPLUSTREE_TYPE::InsertFromFile(const std::string &file_name, Transaction *txn) {
   int64_t key;
   std::ifstream input(file_name);
-  while (input >> key) {
+  while (input) {
+    input >> key;
+
     KeyType index_key;
     index_key.SetFromInteger(key);
     RID rid(key);
@@ -139,37 +140,11 @@ INDEX_TEMPLATE_ARGUMENTS
 void BPLUSTREE_TYPE::RemoveFromFile(const std::string &file_name, Transaction *txn) {
   int64_t key;
   std::ifstream input(file_name);
-  while (input >> key) {
+  while (input) {
+    input >> key;
     KeyType index_key;
     index_key.SetFromInteger(key);
     Remove(index_key, txn);
-  }
-}
-
-/*
- * This method is used for test only
- * Read data from file and insert/remove one by one
- */
-INDEX_TEMPLATE_ARGUMENTS
-void BPLUSTREE_TYPE::BatchOpsFromFile(const std::string &file_name, Transaction *txn) {
-  int64_t key;
-  char instruction;
-  std::ifstream input(file_name);
-  while (input) {
-    input >> instruction >> key;
-    RID rid(key);
-    KeyType index_key;
-    index_key.SetFromInteger(key);
-    switch (instruction) {
-      case 'i':
-        Insert(index_key, rid, txn);
-        break;
-      case 'd':
-        Remove(index_key, txn);
-        break;
-      default:
-        break;
-    }
   }
 }
 

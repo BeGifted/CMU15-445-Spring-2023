@@ -112,6 +112,7 @@ auto Tuple::ToString(const Schema *schema) const -> std::string {
     }
   }
   os << ")";
+  os << " Tuple size is " << data_.size();
 
   return os.str();
 }
