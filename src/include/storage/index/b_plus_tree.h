@@ -53,6 +53,9 @@ class Context {
   // You may want to use this when getting value, but not necessary.
   std::deque<ReadPageGuard> read_set_;
 
+  std::deque<page_id_t> prev_;
+  std::deque<page_id_t> next_;
+
   auto IsRootPage(page_id_t page_id) -> bool { return page_id == root_page_id_; }
 };
 

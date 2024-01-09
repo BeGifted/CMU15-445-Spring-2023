@@ -73,6 +73,14 @@ class BPlusTreeInternalPage : public BPlusTreePage {
    */
   auto ValueAt(int index) const -> ValueType;
 
+  auto IndexOf(const KeyType &key, const KeyComparator &comparator) const -> int;
+  auto ValueOn(const KeyType &key, const KeyComparator &comparator) const -> ValueType;
+  void ResetIndex(const KeyType &old_key, const KeyType &new_key, const KeyComparator &comparator);
+  void Split(BufferPoolManager *bpm, KeyType &new_key, page_id_t &r_page_id);
+  void Insert(const KeyType &key, const ValueType &l_v, const ValueType &r_v, const KeyComparator &comparator);
+  auto SplitPrev(BufferPoolManager *bpm, page_id_t page_id, KeyType &old_key, KeyType &new_key) -> bool;
+  auto SplitNext(BufferPoolManager *bpm, page_id_t page_id, KeyType &old_key, KeyType &new_key) -> bool;
+
   /**
    * @brief For test only, return a string representing all keys in
    * this internal page, formatted as "(key1,key2,key3,...)"
