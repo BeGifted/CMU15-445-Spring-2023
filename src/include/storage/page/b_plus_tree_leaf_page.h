@@ -58,12 +58,17 @@ class BPlusTreeLeafPage : public BPlusTreePage {
   auto GetNextPageId() const -> page_id_t;
   void SetNextPageId(page_id_t next_page_id);
   auto KeyAt(int index) const -> KeyType { return array_[index].first; }
+  auto KVAt(int index) const -> const MappingType & { return array_[index]; }
   auto IndexOf(const KeyType &key, const KeyComparator &comparator) const -> int;
   auto ValueOn(const KeyType &key, const KeyComparator &comparator) const -> std::optional<ValueType>;
   auto Insert(const KeyType &key, const ValueType &value, const KeyComparator &comparator) -> bool;
   auto SplitPrev(BufferPoolManager *bpm, page_id_t page_id, KeyType &old_key, KeyType &new_key) -> bool;
   auto SplitNext(BufferPoolManager *bpm, page_id_t page_id, KeyType &old_key, KeyType &new_key) -> bool;
   void Split(BufferPoolManager *bpm, KeyType &new_key, page_id_t &r_page_id);
+  auto Delete(const KeyType &key, const KeyComparator &comparator) -> bool;
+  auto MergePrev(BufferPoolManager *bpm, page_id_t page_id, KeyType &old_key, KeyType &new_key) -> bool;
+  auto MergeNext(BufferPoolManager *bpm, page_id_t page_id, KeyType &old_key, KeyType &new_key) -> bool;
+  auto Merge(BufferPoolManager *bpm, page_id_t l_page_id, page_id_t r_page_id) -> KeyType;
 
   /**
    * @brief for test only return a string representing all keys in

@@ -80,6 +80,10 @@ class BPlusTreeInternalPage : public BPlusTreePage {
   void Insert(const KeyType &key, const ValueType &l_v, const ValueType &r_v, const KeyComparator &comparator);
   auto SplitPrev(BufferPoolManager *bpm, page_id_t page_id, KeyType &old_key, KeyType &new_key) -> bool;
   auto SplitNext(BufferPoolManager *bpm, page_id_t page_id, KeyType &old_key, KeyType &new_key) -> bool;
+  void Delete(const KeyType &key, const KeyComparator &comparator);
+  auto MergePrev(BufferPoolManager *bpm, page_id_t page_id, KeyType &old_key, KeyType &new_key) -> bool;
+  auto MergeNext(BufferPoolManager *bpm, page_id_t page_id, KeyType &old_key, KeyType &new_key) -> bool;
+  auto Merge(BufferPoolManager *bpm, page_id_t l_page_id, page_id_t r_page_id) -> KeyType;
 
   /**
    * @brief For test only, return a string representing all keys in

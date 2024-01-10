@@ -79,9 +79,9 @@ void B_PLUS_TREE_INTERNAL_PAGE_TYPE::Split(BufferPoolManager *bpm, KeyType &new_
 INDEX_TEMPLATE_ARGUMENTS
 void B_PLUS_TREE_INTERNAL_PAGE_TYPE::Insert(const KeyType &key, const ValueType &l_v, const ValueType &r_v,
                                             const KeyComparator &comparator) {
-  std::cout << "Internal Insert size: " << GetSize() << " key: " << key << std::endl;
+  //  std::cout << "Internal Insert size: " << GetSize() << " key: " << key << std::endl;
   if (GetSize() == 0) {
-    array_[0] = MappingType(key, l_v);
+    array_[0] = MappingType(key, l_v);  // key is no use
     array_[1] = MappingType(key, r_v);
     IncreaseSize(2);
   } else {
@@ -128,6 +128,69 @@ auto B_PLUS_TREE_INTERNAL_PAGE_TYPE::SplitNext(BufferPoolManager *bpm, page_id_t
   IncreaseSize(-1);
   new_key = page->KeyAt(0);
   return true;
+}
+
+INDEX_TEMPLATE_ARGUMENTS
+void B_PLUS_TREE_INTERNAL_PAGE_TYPE::Delete(const KeyType &key, const KeyComparator &comparator) {
+  int index = IndexOf(key, comparator) - 1;
+  std::copy(array_ + index + 1, array_ + GetSize(), array_ + index);
+  IncreaseSize(-1);
+}
+
+INDEX_TEMPLATE_ARGUMENTS
+auto B_PLUS_TREE_INTERNAL_PAGE_TYPE::MergePrev(BufferPoolManager *bpm, page_id_t page_id, KeyType &old_key,
+                                               KeyType &new_key) -> bool {
+  WritePageGuard guard = bpm->FetchPageWrite(page_id);
+  auto page = guard.AsMut<BPlusTreeInternalPage>();
+  if (page->GetSize() <= page->GetMinSize()) {
+    return false;
+  }
+  old_key = KeyAt(0);
+  std::copy_backward(array_, array_ + GetSize(), array_ + GetSize() + 1);
+  array_[0] = page->array_[page->GetSize() - 1];
+  page->IncreaseSize(-1);
+  IncreaseSize(1);
+  new_key = KeyAt(0);
+  return true;
+}
+
+INDEX_TEMPLATE_ARGUMENTS
+auto B_PLUS_TREE_INTERNAL_PAGE_TYPE::MergeNext(BufferPoolManager *bpm, page_id_t page_id, KeyType &old_key,
+                                               KeyType &new_key) -> bool {
+  WritePageGuard guard = bpm->FetchPageWrite(page_id);
+  auto page = guard.AsMut<BPlusTreeInternalPage>();
+  if (page->GetSize() <= page->GetMinSize()) {
+    return false;
+  }
+  old_key = page->KeyAt(0);
+  array_[GetSize()] = page->array_[0];
+  std::copy(page->array_ + 1, page->array_ + page->GetSize(), page->array_);
+  page->IncreaseSize(-1);
+  IncreaseSize(1);
+  new_key = page->KeyAt(0);
+  return true;
+}
+
+INDEX_TEMPLATE_ARGUMENTS
+auto B_PLUS_TREE_INTERNAL_PAGE_TYPE::Merge(BufferPoolManager *bpm, page_id_t l_page_id, page_id_t r_page_id)
+    -> KeyType {
+  if (l_page_id != INVALID_PAGE_ID) {
+    WritePageGuard guard = bpm->FetchPageWrite(l_page_id);
+    auto page = guard.AsMut<BPlusTreeInternalPage>();
+    std::copy(array_, array_ + GetSize(), page->array_ + page->GetSize());
+    page->IncreaseSize(GetSize());
+    SetSize(0);
+    return KeyAt(0);
+  }
+  if (r_page_id != INVALID_PAGE_ID) {
+    WritePageGuard guard = bpm->FetchPageWrite(r_page_id);
+    auto page = guard.AsMut<BPlusTreeInternalPage>();
+    std::copy(page->array_, page->array_ + page->GetSize(), array_ + GetSize());
+    IncreaseSize(page->GetSize());
+    page->SetSize(0);
+    return page->KeyAt(0);
+  }
+  return KeyAt(0);
 }
 
 /*
