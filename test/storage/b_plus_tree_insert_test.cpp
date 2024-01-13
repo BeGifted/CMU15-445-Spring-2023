@@ -88,8 +88,6 @@ TEST(BPlusTreeTests, InsertTest4) {
     std::cout << tree.DrawBPlusTree() << std::endl;
   }
 
-
-
   std::vector<RID> rids;
   for (auto key : keys) {
     rids.clear();
