@@ -15,6 +15,7 @@
 #include <algorithm>
 #include <condition_variable>  // NOLINT
 #include <list>
+#include <map>
 #include <memory>
 #include <mutex>  // NOLINT
 #include <unordered_map>
@@ -65,7 +66,7 @@ class LockManager {
   class LockRequestQueue {
    public:
     /** List of lock requests for the same resource (table or row) */
-    std::list<LockRequest *> request_queue_;
+    std::list<std::shared_ptr<LockRequest>> request_queue_;
     /** For notifying blocked transactions on this rid */
     std::condition_variable cv_;
     /** txn_id of an upgrading transaction (if any) */
@@ -201,7 +202,7 @@ class LockManager {
    *        Unlocking X locks should set the transaction state to SHRINKING.
    *        Unlocking S locks does not affect transaction state.
    *
-   *   READ_UNCOMMITTED:
+   *    READ_UNCOMMITTED:
    *        Unlocking X locks should set the transaction state to SHRINKING.
    *        S locks are not permitted under READ_UNCOMMITTED.
    *            The behaviour upon unlocking an S lock under this isolation level is undefined.
@@ -312,15 +313,21 @@ class LockManager {
  private:
   /** Spring 2023 */
   /* You are allowed to modify all functions below. */
+  static auto IsGrantAllowed(std::shared_ptr<LockRequest> &lock_request,
+                             const std::shared_ptr<LockRequestQueue> &lock_request_queue) -> bool;
+  static void InsertTableLockSet(Transaction *txn, const std::shared_ptr<LockRequest> &lock_request);
+  static void InsertRowLockSet(Transaction *txn, const std::shared_ptr<LockRequest> &lock_request);
+  void DeleteTableLockSet(Transaction *txn, const std::shared_ptr<LockRequest> &lock_request);
+  void DeleteRowLockSet(Transaction *txn, const std::shared_ptr<LockRequest> &lock_request);
+
   auto UpgradeLockTable(Transaction *txn, LockMode lock_mode, const table_oid_t &oid) -> bool;
   auto UpgradeLockRow(Transaction *txn, LockMode lock_mode, const table_oid_t &oid, const RID &rid) -> bool;
-  auto AreLocksCompatible(LockMode l1, LockMode l2) -> bool;
+  static auto AreLocksCompatible(LockMode l1, LockMode l2) -> bool;
   auto CanTxnTakeLock(Transaction *txn, LockMode lock_mode) -> bool;
   void GrantNewLocksIfPossible(LockRequestQueue *lock_request_queue);
   auto CanLockUpgrade(LockMode curr_lock_mode, LockMode requested_lock_mode) -> bool;
   auto CheckAppropriateLockOnTable(Transaction *txn, const table_oid_t &oid, LockMode row_lock_mode) -> bool;
-  auto FindCycle(txn_id_t source_txn, std::vector<txn_id_t> &path, std::unordered_set<txn_id_t> &on_path,
-                 std::unordered_set<txn_id_t> &visited, txn_id_t *abort_txn_id) -> bool;
+  auto FindCycle(txn_id_t source_txn) -> bool;
   void UnlockAll();
 
   /** Structure that holds lock requests for a given table oid */
@@ -336,8 +343,13 @@ class LockManager {
   std::atomic<bool> enable_cycle_detection_;
   std::thread *cycle_detection_thread_;
   /** Waits-for graph representation. */
-  std::unordered_map<txn_id_t, std::vector<txn_id_t>> waits_for_;
+  std::map<txn_id_t, std::vector<txn_id_t>> waits_for_;
   std::mutex waits_for_latch_;
+
+  std::vector<txn_id_t> path_;
+  std::unordered_set<txn_id_t> on_path_;
+  std::unordered_set<txn_id_t> visited_;
+  txn_id_t abort_txn_id_;
 };
 
 }  // namespace bustub

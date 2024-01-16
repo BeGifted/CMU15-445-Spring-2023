@@ -27,14 +27,52 @@ void TransactionManager::Commit(Transaction *txn) {
   ReleaseLocks(txn);
 
   txn->SetState(TransactionState::COMMITTED);
+  std::scoped_lock lock(txn_map_mutex_);
+  txn_map_.erase(txn->GetTransactionId());
 }
 
 void TransactionManager::Abort(Transaction *txn) {
   /* TODO: revert all the changes in write set */
+  auto table_write_set = txn->GetWriteSet();
+  while (!table_write_set->empty()) {
+    auto record = table_write_set->back();
+    auto tuple_meta = record.table_heap_->GetTupleMeta(record.rid_);
+    switch (record.wtype_) {
+      case WType::INSERT:
+        tuple_meta.is_deleted_ = true;
+        record.table_heap_->UpdateTupleMeta(tuple_meta, record.rid_);
+        break;
+      case WType::DELETE:
+        tuple_meta.is_deleted_ = false;
+        record.table_heap_->UpdateTupleMeta(tuple_meta, record.rid_);
+        break;
+      case WType::UPDATE:
+        break;
+    }
+    table_write_set->pop_back();
+  }
+
+  auto index_write_set = txn->GetIndexWriteSet();
+  while (!index_write_set->empty()) {
+    auto record = index_write_set->back();
+    switch (record.wtype_) {
+      case WType::INSERT:
+        record.catalog_->GetIndex(record.index_oid_)->index_->DeleteEntry(record.tuple_, record.rid_, txn);
+        break;
+      case WType::DELETE:
+        record.catalog_->GetIndex(record.index_oid_)->index_->InsertEntry(record.tuple_, record.rid_, txn);
+        break;
+      case WType::UPDATE:
+        break;
+    }
+    index_write_set->pop_back();
+  }
 
   ReleaseLocks(txn);
 
   txn->SetState(TransactionState::ABORTED);
+  std::scoped_lock lock(txn_map_mutex_);
+  txn_map_.erase(txn->GetTransactionId());
 }
 
 void TransactionManager::BlockAllTransactions() { UNIMPLEMENTED("block is not supported now!"); }
